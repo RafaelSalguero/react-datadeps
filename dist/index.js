@@ -79,7 +79,7 @@ var refreshStatePropState = function (state, propName, change) {
  * @param syncOnly True to ignore async dependencies
  */
 function refreshProps(nextProps, lastStateFull, refresh, refreshResult, syncOnly) {
-    var depTree = nextProps.dataDependencies(nextProps.props);
+    var depTree = nextProps.dataDependencies(nextProps.props, refresh);
     //Recorremos todas las dependencias de información:
     for (var propName in depTree) {
         var dep = depTree[propName];
@@ -88,7 +88,7 @@ function refreshProps(nextProps, lastStateFull, refresh, refreshResult, syncOnly
             var nextParams = dep.params || [];
             var shouldUpdate = (lastState.lastParams == undefined || !sequenceEquals(lastState.lastParams, nextParams));
             if (shouldUpdate) {
-                var result = dep.query(refresh);
+                var result = dep.query();
                 refreshResult(propName, result, nextParams, !!dep.async);
             }
         }
@@ -115,7 +115,7 @@ function refreshResult(propName, queryResult, queryParams, async, setState) {
                     case 0: return [4 /*yield*/, queryResult];
                     case 1:
                         result = _a.sent();
-                        setState(function (prevState) { return refreshStatePropState(prevState, propName, { status: "done", lastQueryResult: queryResult }); });
+                        setState(function (prevState) { return refreshStatePropState(prevState, propName, { status: "done", lastQueryResult: result }); });
                         return [2 /*return*/];
                 }
             });
@@ -142,8 +142,8 @@ var ReactDataDepsComponent = (function (_super) {
         /**Prevent previoues query refreshes to override newer query refreshes */
         _this.propVersion = {};
         _this.refresh = function (propName) {
-            var dep = _this.props.dataDependencies(_this.props.props)[propName];
-            var result = dep.query(_this.refresh);
+            var dep = _this.props.dataDependencies(_this.props.props, _this.refresh)[propName];
+            var result = dep.query();
             _this.refreshResult(propName, result, dep.params || [], !!dep.async);
         };
         /**Refresh the result */
@@ -159,7 +159,7 @@ var ReactDataDepsComponent = (function (_super) {
             refreshResult(propName, queryResult, queryParams, async, setState);
         };
         //Init all props state with status: "loading"
-        _this.state = getInitialState(props.dataDependencies(props.props));
+        _this.state = getInitialState(props.dataDependencies(props.props, function () { return null; }));
         return _this;
     }
     ReactDataDepsComponent.prototype.componentDidMount = function () {
@@ -197,7 +197,7 @@ var ReactDataDepsComponent = (function (_super) {
 /**Create a curry function that */
 function mapPropsToThunks(loading, error) {
     return function (dependencies) {
-        var deps = dependencies;
+        var deps = function (props, refresh) { return dependencies(props, refresh); };
         return function (component) {
             var ret = (function (_super) {
                 __extends(ReactDataDepWrapper, _super);

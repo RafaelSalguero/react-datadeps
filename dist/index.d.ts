@@ -7,9 +7,9 @@ export interface PropQuery<TProps, TProp> {
     /**Get the query parameters, if this methods returns the same according to a shallowCompare, the query is not executed*/
     params?: any[];
     /**Get a promise with the value to pass to the prop, the first argument is the result*/
-    query: (refresh: (prop: keyof TProps) => void) => PromiseLike<TProp> | TProp;
+    query: () => PromiseLike<TProp> | TProp;
 }
 /**Create a curry function that */
-export declare function mapPropsToThunks(loading?: JSX.Element, error?: JSX.Element): <TProps>(dependencies: (props: TProps) => {
+export declare function mapPropsToThunks(loading?: JSX.Element, error?: JSX.Element): <TProps>(dependencies: (props: TProps, refresh: (prop: keyof TProps) => void) => {
     [K in keyof TProps]?: PropQuery<TProps, TProps[K]> | undefined;
 }) => (component: React.ComponentClass<TProps>) => React.ComponentClass<Partial<TProps>>;

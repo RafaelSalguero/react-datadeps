@@ -15,7 +15,7 @@ export interface PropQuery<TProps, TProp> {
     /**Get the query parameters, if this methods returns the same according to a shallowCompare, the query is not executed*/
     params?: any[];
     /**Get a promise with the value to pass to the prop, the first argument is the result*/
-    query: (refresh: (prop: keyof TProps) => void) => PromiseLike<TProp> | TProp;
+    query: () => PromiseLike<TProp> | TProp;
 }
 
 interface MyProps {
@@ -34,7 +34,7 @@ interface ReactQueryProps {
     /**Props to pass to the child component */
     props: any;
     /**Data dependencies definition */
-    dataDependencies: (props: any) => PropsQuery;
+    dataDependencies: (props: any, refresh: (propName: string) => void) => PropsQuery;
 }
 
 interface PerPropState {
@@ -66,7 +66,7 @@ const refreshStatePropState = (state: ReactQueryState, propName: string, change:
  * @param syncOnly True to ignore async dependencies
  */
 function refreshProps(nextProps: ReactQueryProps, lastStateFull: ReactQueryState, refresh: (prop: string) => void, refreshResult: (prop: string, result: any, params: any[], async: boolean) => void, syncOnly: boolean) {
-    const depTree = nextProps.dataDependencies(nextProps.props);
+    const depTree = nextProps.dataDependencies(nextProps.props, refresh);
     //Recorremos todas las dependencias de información:
     for (const propName in depTree) {
         const dep = depTree[propName] as PropQuery<any, any>;
@@ -76,7 +76,7 @@ function refreshProps(nextProps: ReactQueryProps, lastStateFull: ReactQueryState
             const nextParams = dep.params || [];
             const shouldUpdate = (lastState.lastParams == undefined || !sequenceEquals(lastState.lastParams, nextParams));
             if (shouldUpdate) {
-                const result = dep.query(refresh);
+                const result = dep.query();
                 refreshResult(propName, result, nextParams, !!dep.async);
             }
         }
@@ -98,7 +98,7 @@ function refreshResult(propName: string, queryResult: any, queryParams: any[], a
         //Await the promise, then call setState:
         (async () => {
             const result = await queryResult;
-            setState((prevState) => refreshStatePropState(prevState, propName, { status: "done", lastQueryResult: queryResult }));
+            setState((prevState) => refreshStatePropState(prevState, propName, { status: "done", lastQueryResult: result }));
         })();
     } else {
         setState((prevState) => refreshStatePropState(prevState, propName, { status: "done", lastQueryResult: queryResult, lastParams: queryParams }));
@@ -117,15 +117,15 @@ class ReactDataDepsComponent extends React.PureComponent<ReactQueryProps, ReactQ
     constructor(props: ReactQueryProps) {
         super(props);
         //Init all props state with status: "loading"
-        this.state = getInitialState(props.dataDependencies(props.props));
+        this.state = getInitialState(props.dataDependencies(props.props, () => null));
     }
 
     /**Prevent previoues query refreshes to override newer query refreshes */
     private propVersion: QueryVersion = {};
 
     private refresh = (propName: string) => {
-        const dep = this.props.dataDependencies(this.props.props)[propName] as PropQuery<any, any>;
-        const result = dep.query(this.refresh);
+        const dep = this.props.dataDependencies(this.props.props, this.refresh)[propName] as PropQuery<any, any>;
+        const result = dep.query();
         this.refreshResult(propName, result, dep.params || [], !!dep.async);
     }
 
@@ -176,8 +176,8 @@ class ReactDataDepsComponent extends React.PureComponent<ReactQueryProps, ReactQ
 
 /**Create a curry function that */
 export function mapPropsToThunks(loading?: JSX.Element, error?: JSX.Element) {
-    return function <TProps>(dependencies: (props: TProps) => TypedPropsQuery<TProps>) {
-        const deps: (props: any) => PropsQuery = dependencies as any;
+    return function <TProps>(dependencies: (props: TProps, refresh: (prop: keyof TProps) => void) => TypedPropsQuery<TProps>) {
+        const deps: (props: any, refresh: (prop: string) => void) => PropsQuery = (props, refresh) => (dependencies(props, refresh) as any as PropsQuery);
         return function (component: React.ComponentClass<TProps>) {
             type ResultPropsType = Partial<TProps>;
             const ret: React.ComponentClass<ResultPropsType> = class ReactDataDepWrapper extends React.PureComponent<ResultPropsType, {}> {
