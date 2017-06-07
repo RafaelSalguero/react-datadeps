@@ -63,7 +63,7 @@ const refreshStatePropState = (state: ReactQueryState, propName: string, change:
 function getEffectiveChildProps(state: ReactQueryState, externalProps: any) {
     /**Get an object with prop values mapped from the solved or unsolved data dependencies */
     const childProps = Object.keys(state).map(key => ({ result: state[key].lastQueryResult, key })).reduce((a, b) => ({ ...a, [b.key]: b.result }), {} as any);
-    return { ...childProps, externalProps };
+    return { ...childProps, ...externalProps };
 }
 
 /**Check if the given property need and update and refresh it */

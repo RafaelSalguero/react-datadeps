@@ -6,12 +6,14 @@
 interface Props {
     id: string;
     myData: string;
+    moreData: string;
     myRefresh: () => void;
 }
 class MyComponent extends React.Component<Props, {}> {
     render() {
         return <div>
-            {this.props.data}
+            {this.props.myData}
+            {this.props.moreData}
             <button onClick={this.props.myRefresh} >Refresh!</button>
         </div>
     }
@@ -21,18 +23,20 @@ class MyComponent extends React.Component<Props, {}> {
 ### 2.- `mapPropsToThunks`
 ```ts
 import { mapPropsToThunks } from "react-datadeps";
-import { myService } from "./myService";
+import { myService, otherService } from "./myService";
 
 const MyComponent2 = mapPropsToThunks()((props, refresh) => ({
     //Declarative data dependencies:
-    id: {
-        query: () => app.router.state["id"]
-    },
     myData: {
         query: async () => await myService(props.id), //query can be an async thunk
         async: true, //await for the query result
-        params: [props.id] //when props.id change, reevaluate query
+        params: [props.id] //when props.id changes, refresh this query
     }, 
+    moreData: {
+        query: async () => await otherService(props.myData), //neasted data dependency
+        async: true,
+        params: [props.myData]
+    },
     myRefresh: {
         query: () => () => refresh("myData") //Inner component can fire a data refresh
     }
@@ -41,7 +45,6 @@ const MyComponent2 = mapPropsToThunks()((props, refresh) => ({
 
 ### 3.- Consume the component
 ```jsx
-//myData will be evaluated each time "id" changes or
-//when the user press the refresh button
-<MyComponent2 id="34" />
+//If id changes, myData and moreData will be refreshed
+<MyComponent2 id="42" />
 ```
