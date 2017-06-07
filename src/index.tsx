@@ -37,6 +37,8 @@ interface ReactQueryProps {
     dataDependencies: (props: any, refresh: (propName: string) => void) => PropsQuery;
 }
 
+/**Indicate that a prop value is still waiting for completition */
+const propPendingValue = Symbol("pending_value");
 interface PerPropState {
     lastParams?: any[];
     lastQueryResult?: any;
@@ -57,58 +59,72 @@ function sequenceEquals<T>(a: T[], b: T[]) {
 /**Return a new state with the given modification to a prop */
 const refreshStatePropState = (state: ReactQueryState, propName: string, change: Partial<PerPropState>) => ({ ...state, [propName]: { ...state[propName], ...change } });
 
+/**Get the props that will be pased to the inner component */
+function getEffectiveChildProps(state: ReactQueryState, externalProps: any) {
+    /**Get an object with prop values mapped from the solved or unsolved data dependencies */
+    const childProps = Object.keys(state).map(key => ({ result: state[key].lastQueryResult, key })).reduce((a, b) => ({ ...a, [b.key]: b.result }), {} as any);
+    return { ...childProps, externalProps };
+}
+
+/**Check if the given property need and update and refresh it */
+function tryRefreshSingleProp(query: () => void, nextParams: any[], lastStateParams: any[] | undefined, refreshResult: (result: any) => void) {
+    //Do not update if this prop value depends on another prop defined as a data dependency
+    const anyPending = nextParams.filter(x => x == propPendingValue).length > 0;
+    const shouldUpdate = !anyPending && (lastStateParams == undefined || !sequenceEquals(lastStateParams, nextParams));
+
+    if (shouldUpdate) {
+        const result = query();
+        refreshResult(result);
+    }
+}
+
 /**
  * Refresh all props
  * @param nextProps The next or current component props
  * @param lastStateFull The last state to compare with
  * @param refresh A function that triggers the refresh of a query
  * @param refreshResult A function that is called with the query results of the queries that needed to be reevaluated
- * @param syncOnly True to ignore async dependencies
  */
-function refreshProps(nextProps: ReactQueryProps, lastStateFull: ReactQueryState, refresh: (prop: string) => void, refreshResult: (prop: string, result: any, params: any[], async: boolean) => void, syncOnly: boolean) {
-    const depTree = nextProps.dataDependencies(nextProps.props, refresh);
-    //Recorremos todas las dependencias de información:
+function refreshProps(nextProps: ReactQueryProps, lastStateFull: ReactQueryState, refresh: (prop: string) => void, refreshResult: (prop: string, result: any, params: any[], async: boolean) => void) {
+    const childProps = getEffectiveChildProps(lastStateFull, nextProps.props);
+    const depTree = nextProps.dataDependencies(childProps, refresh);
+    //For all information dependencies:
     for (const propName in depTree) {
         const dep = depTree[propName] as PropQuery<any, any>;
+        const lastStateParams = lastStateFull[propName] && lastStateFull[propName].lastParams;
+        const nextParams = dep.params || [];
 
-        if (!dep.async || !syncOnly) {
-            const lastState = lastStateFull[propName] || ({ status: "loading" } as PerPropState);
-            const nextParams = dep.params || [];
-            const shouldUpdate = (lastState.lastParams == undefined || !sequenceEquals(lastState.lastParams, nextParams));
-            if (shouldUpdate) {
-                const result = dep.query();
-                refreshResult(propName, result, nextParams, !!dep.async);
-            }
-        }
+        tryRefreshSingleProp(dep.query, nextParams, lastStateParams, (result) => refreshResult(propName, result, nextParams, !!dep.async));
     }
 }
 
 /**
- * Call the setState with the query result, awaits the result if async== true
+ * Call the setState with the query result, awaits the result if async== true.
+ * The promise is resolved when all the states sets are finished
  * @param propName Prop name to refresh
  * @param queryResult Query result for this prop
  * @param queryParams Query params that resulted on the given query evaluation
  * @param async True to await the query result
  * @param setState Function to set the component state
  */
-function refreshResult(propName: string, queryResult: any, queryParams: any[], async: boolean, setState: (change: (prevState: ReactQueryState) => Partial<ReactQueryState>) => void) {
+async function refreshResult(propName: string, queryResult: any, queryParams: any[], async: boolean, setState: (change: (prevState: ReactQueryState) => Partial<ReactQueryState>) => PromiseLike<void>) {
     if (async) {
         //Set the query params:
-        setState((prevState) => refreshStatePropState(prevState, propName, { lastParams: queryParams }));
+        await setState((prevState) => refreshStatePropState(prevState, propName, { lastParams: queryParams }));
         //Await the promise, then call setState:
-        (async () => {
+        await (async () => {
             const result = await queryResult;
-            setState((prevState) => refreshStatePropState(prevState, propName, { status: "done", lastQueryResult: result }));
+            await setState((prevState) => refreshStatePropState(prevState, propName, { status: "done", lastQueryResult: result }));
         })();
     } else {
-        setState((prevState) => refreshStatePropState(prevState, propName, { status: "done", lastQueryResult: queryResult, lastParams: queryParams }));
+        await setState((prevState) => refreshStatePropState(prevState, propName, { status: "done", lastQueryResult: queryResult, lastParams: queryParams }));
     }
 }
 
 /**Get the initial state for a ReactQueryComponent */
 function getInitialState(depTree: PropsQuery): ReactQueryState {
     const keys = Object.keys(depTree);
-    const initialState: PerPropState = { status: "loading" };
+    const initialState: PerPropState = { status: "loading", lastQueryResult: propPendingValue };
     const ret = keys.reduce((x, key) => ({ ...x, [key]: initialState }), {});
     return ret;
 }
@@ -129,27 +145,31 @@ class ReactDataDepsComponent extends React.PureComponent<ReactQueryProps, ReactQ
         this.refreshResult(propName, result, dep.params || [], !!dep.async);
     }
 
+    private refreshProps = (nextProps: any) => refreshProps(nextProps, this.state, this.refresh, this.refreshResult);
+
     /**Refresh the result */
-    private refreshResult = (propName: string, queryResult: any, queryParams: any[], async: boolean) => {
+    private refreshResult = async (propName: string, queryResult: any, queryParams: any[], async: boolean) => {
         //Increment the prop version:
         const currentVersion = (this.propVersion[propName] || 0) + 1;
         this.propVersion[propName] = currentVersion;
 
-        const setState = (change: (prev: ReactQueryState) => Partial<ReactQueryState>) => {
+        const setState = async (change: (prev: ReactQueryState) => Partial<ReactQueryState>) => {
             //Only setState if the propVersion is the same as the currentVersion at the moment of the setState call
             if (this.propVersion[propName] == currentVersion)
-                this.setState(change);
+                await new Promise((resolve) => this.setState(change, resolve));
         };
-        refreshResult(propName, queryResult, queryParams, async, setState);
+        await refreshResult(propName, queryResult, queryParams, async, setState);
+        //refresh props after setting states:
+        this.refreshProps(this.props);
     }
 
     componentDidMount() {
         //Initial refresh
-        refreshProps(this.props, this.state, this.refresh, this.refreshResult, false);
+        this.refreshProps(this.props);
     }
 
     componentWillReceiveProps(nextProps: ReactQueryProps) {
-        refreshProps(nextProps, this.state, this.refresh, this.refreshResult, false);
+        this.refreshProps(nextProps);
     }
 
     render() {
@@ -162,10 +182,8 @@ class ReactDataDepsComponent extends React.PureComponent<ReactQueryProps, ReactQ
         if (someError) {
             return this.props.error || null;
         } else if (allDone) {
-            //Form the props object:
-            const childPropsFromState = keys.map(key => ({ result: state[key].lastQueryResult, key })).reduce((a, b) => ({ ...a, [b.key]: b.result }), {} as any);
             //Mix props from query with extern props:
-            const childProps = { ...childPropsFromState, ... this.props.props };
+            const childProps = getEffectiveChildProps(this.state, this.props.props);
             return React.createElement(this.props.component, childProps);
         } else {
             return this.props.loading || null;
