@@ -38,7 +38,7 @@ interface ReactQueryProps {
 }
 
 /**Indicate that a prop value is still waiting for completition */
-const propPendingValue = Symbol("pending_value");
+const propPendingValue = { _: "pending_value", toString: () => "pending_value" };
 interface PerPropState {
     lastParams?: any[];
     lastQueryResult?: any;
