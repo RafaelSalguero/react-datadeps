@@ -92,7 +92,7 @@ function refreshProps(nextProps: ReactQueryProps, lastStateFull: ReactQueryState
     for (const propName in depTree) {
         const dep = depTree[propName] as PropQuery<any, any>;
         const lastStateParams = lastStateFull[propName] && lastStateFull[propName].lastParams;
-        const nextParams = dep.params || [];
+        const nextParams = (dep.params || []).map((key)=> childProps[key]);
 
         tryRefreshSingleProp(dep.query, nextParams, lastStateParams, (result) => refreshResult(propName, result, nextParams, !!dep.async));
     }
