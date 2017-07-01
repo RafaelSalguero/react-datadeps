@@ -1,6 +1,6 @@
 {
   "name": "react-datadeps",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Declarative data dependencies for react components",
   "main": "dist/index.js",
   "typescript": {
@@ -17,6 +17,7 @@
   "author": "Rafael Salguero Iturrios <rafaelsalgueroiturrios@gmail.com>",
   "license": "MIT",
   "dependencies": {
+    "keautils": "^1.0.4",
     "react": "^15.5.4"
   },
   "devDependencies": {

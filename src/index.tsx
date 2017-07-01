@@ -1,5 +1,7 @@
 import React = require("react");
+import { doTest } from  "./test";
 
+doTest();
 interface PropsQuery {
     [key: string]: PropQuery<any, any>
 }
