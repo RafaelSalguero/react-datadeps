@@ -58,8 +58,8 @@ export function doTest() {
     function resolve(props: Props) {
         props = props;
     }
-    const result = getNextState(props, deps, { lastProps: undefined, propsState: {} }, resolve);
+    const result = getNextState(props, deps,   resolve);
 
     //result.dispatchChange({ idCliente: 6});
-    setTimeout(() => result.dispatchChange({ idCliente: 6 }), 1000);
+    setTimeout(() => result({ idCliente: 6 }), 1000);
 }
