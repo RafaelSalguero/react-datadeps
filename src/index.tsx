@@ -5,7 +5,7 @@ import { PropDependencies } from "./types";
 import { getNextState } from "./nextState";
 //doTest();
 
-export function mapThunksToProps(error: JSX.Element, loading: JSX.Element) {
+export function mapThunksToProps(loading: JSX.Element, error: JSX.Element) {
     return function <TProps>(deps: PropDependencies<TProps>) {
         return function (Component: React.ComponentClass<TProps>): React.ComponentClass<Partial<TProps>> {
              const r = class MapThunksComponent extends React.PureComponent<Partial<TProps>, { props: any }> {
