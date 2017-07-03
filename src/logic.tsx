@@ -21,12 +21,12 @@ function IsAsyncPropQuery<TProps, TProp>(dep: PropQuery<TProps, TProp> | undefin
  * devuelve "nothingChanged" si ninguna de sus dependencias cambio así que no se debe de actualizar, o "pendingDeps" si alguna de sus dependencias
  * aún esta pendiente de actualizar y por eso no se debe de actualizar
  */
-function shouldUpdate(nextParams: any[], lastStateParams: any[] | undefined): "update" | "nothingChanged" | "pendingDeps" {
+function shouldUpdate(nextParams: any[], lastStateParams: any[] | undefined, force: boolean): "update" | "nothingChanged" | "pendingDeps" {
     const anyPending = any(nextParams, x => x == propPendingValue);
     if (anyPending) return "pendingDeps";
 
     const change = lastStateParams == undefined || !sequenceEquals(lastStateParams, nextParams);
-    return change ? "update" : "nothingChanged";
+    return (change || force) ? "update" : "nothingChanged";
 }
 
 
@@ -68,7 +68,7 @@ export function getEffectiveProps<TProps>(externalProps: Partial<TProps>, allPro
 function getInitialStateSingleProp<TProps, TProp>(params: QueryParams<TProps>, dep: PropQuery<TProps, TProp>): InitialPropStateResult<TProp> {
     const lastParams = (dep.params || []).map(key => params.props[key]);
     if (IsAsyncPropQuery<TProps, TProp>(dep)) {
-        const promise = dep.query(params.props as TProps, params.refresh!);
+        const promise = dep.query(params.props as TProps, params.refresh);
         const props = params.props;
         const depParams = dep.params || [];
         const nextParams = depParams.map(key => params.props[key]);
@@ -84,7 +84,7 @@ function getInitialStateSingleProp<TProps, TProp>(params: QueryParams<TProps>, d
             promise: promiseResult
         };
     } else {
-        const result = dep.query(params.props as TProps, params.refresh!);
+        const result = dep.query(params.props as TProps, params.refresh);
         return {
             value: {
                 status: "done",
@@ -157,11 +157,20 @@ export interface InitialStateResult<TProps> {
 
 /**Obtiene el estado inicial de todas las propiedades. Devuelve una promisa que se resuelve cuando todas las propiedades asíncronas han sido resueltas, y que
  * incluye los resultados de la resolución de esas propiedades
+ * @param forceUpdate Propiedad que queremos actualizar incluso si ninguna de sus dependencias ha cambiado
  */
-export function getNextStateIteration<TProps>(externalProps: Partial<TProps>, deps: PropDependencies<TProps>, lastState: PropsState<TProps>): InitialStateResult<TProps> {
+export function getNextStateIteration<TProps>(
+    externalProps: Partial<TProps>, 
+    deps: PropDependencies<TProps>, 
+    lastState: PropsState<TProps>, 
+    forceUpdate: (keyof TProps) | undefined,
+    refresh: (prop: keyof TProps) => void
+    ): InitialStateResult<TProps> {
+
     const allPropsFromDeps = Object.keys(deps) as (keyof TProps)[];
     const params: QueryParams<TProps> = {
-        props: getEffectiveProps(externalProps, allPropsFromDeps, lastState)
+        props: getEffectiveProps(externalProps, allPropsFromDeps, lastState),
+        refresh: refresh
     };
     type PerPropResult = {[K in keyof TProps]?: InitialPropStateResult<TProps[K]> };
     const perProp: PerPropResult = {};
@@ -177,7 +186,7 @@ export function getNextStateIteration<TProps>(externalProps: Partial<TProps>, de
             const nextParams = extractParamValues(params.props, dep.params);
             const lastStateProp = lastState[prop];
             const lastParams = lastStateProp && lastStateProp.lastParams;
-            const update = shouldUpdate(nextParams, lastParams);
+            const update = shouldUpdate(nextParams, lastParams, prop == forceUpdate);
 
             const result: InitialPropStateResult<TProps[keyof TProps]> =
                 update == "update" ? getInitialStateSingleProp<TProps, TProps[keyof TProps]>(params, dep) :
@@ -219,12 +228,19 @@ export interface IterateResult<TProps> {
 
 /**Itera obteniendo el siguiente state con getNextStateIteration hasta que ya no hay actualizaciones síncronas, y devuelve un arreglo con las promesas
  * de las actualizaciones asíncronas
+ * @param forceUpdate Propiedad que queremos actualizar inclusi si ninguna de sus dependencias ha cambiado
  */
-export function iterate<TProps>(externalProps: Partial<TProps>, deps: PropDependencies<TProps>, lastState: State<TProps>): IterateResult<TProps> {
+export function iterate<TProps>(
+    externalProps: Partial<TProps>, 
+    deps: PropDependencies<TProps>, 
+    lastState: State<TProps>, 
+    forceUpdate: (keyof TProps) | undefined, 
+    refresh: (prop: keyof TProps) => void): IterateResult<TProps> {
+
     let state = lastState;
     let promises: ChangePromise<TProps>[] = [];
     while (true) {
-        const result = getNextStateIteration(externalProps, deps, state.propsState);
+        const result = getNextStateIteration(externalProps, deps, state.propsState, forceUpdate, refresh);
         state = result.state;
         promises.push(...result.promises)
 

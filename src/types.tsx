@@ -19,8 +19,10 @@ export type PropDependencies<TProps> = {[K in keyof TProps]?: PropQuery<TProps, 
 
 export type PromiseResult<T> = { status: "done", value: T } | { status: "error", error: any };
 export interface QueryParams<TProps> {
+    /**Current props */
     props: Partial<TProps>;
-    refresh?: (prop: keyof TProps) => void;
+    /**Refresh the given prop query. The refresh happens only if all prop dependencies are fully solved */
+    refresh: (prop: keyof TProps) => void;
 }
 //**********************************
 //syntax test:

@@ -36,25 +36,11 @@ const deps: PropDependencies<Props> = {
         async: true,
         params: ["myData"]
     },
-    my
+    myRefresh: {
+        query: (props, refresh) => () => refresh() //Inner component can fire a data refresh
+    }
 };
 
-const MyComponent2 = mapPropsToThunks()((props, refresh) => ({
-    //Declarative data dependencies:
-    myData: {
-        query: async () => await myService(props.id), //query can be an async thunk
-        async: true, //await for the query result
-        params: [props.id] //when props.id changes, refresh this query
-    }, 
-    moreData: {
-        query: async () => await otherService(props.myData), //neasted data dependency
-        async: true,
-        params: [props.myData]
-    },
-    myRefresh: {
-        query: () => () => refresh("myData") //Inner component can fire a data refresh
-    }
-}))(MyComponent);
 ```
 
 ### 3.- Consume the component

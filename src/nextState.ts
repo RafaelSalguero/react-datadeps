@@ -10,9 +10,9 @@ function getNextStateFromPromise<TProps>(
     externalProps: Partial<TProps>,
     allPropsFromDeps: (keyof TProps)[],
     state: State<TProps>,
-    deps: PropDependencies<TProps>, 
+    deps: PropDependencies<TProps>,
     change: PromiseResult<TProps[keyof TProps]>,
-    original: ChangePromise<TProps> ) :  State<TProps> | null {
+    original: ChangePromise<TProps>): State<TProps> | null {
 
     const dep = deps[original.prop] as AsyncPropQuery<TProps, TProps[keyof TProps]>;
     const actualProps = getEffectiveProps(externalProps, allPropsFromDeps, state.propsState);
@@ -59,7 +59,7 @@ export function getNextState<TProps>(initialProps: Partial<TProps>, deps: PropDe
     let state: State<TProps> = { lastProps: undefined, propsState: {} };
     let externalProps = initialProps;
 
-    const dispatchPromise = (change: PromiseResult<TProps[keyof TProps]>, original: ChangePromise<TProps>) => {
+    function dispatchPromise(change: PromiseResult<TProps[keyof TProps]>, original: ChangePromise<TProps>) {
         const nextState = getNextStateFromPromise(
             externalProps,
             allPropsFromDeps,
@@ -68,7 +68,7 @@ export function getNextState<TProps>(initialProps: Partial<TProps>, deps: PropDe
             change,
             original
         );
-       
+
         //Eliminamos esta promesa de las promesas pendientes:
         promises = promises.filter(x => x != original);
         //Actualizamos el state si es que cambio:
@@ -84,8 +84,13 @@ export function getNextState<TProps>(initialProps: Partial<TProps>, deps: PropDe
         check();
     }
 
-    function check() {
-        const result = iterate(externalProps, deps, state);
+    /**Forza el refrescado de una propiedad */
+    function refresh(prop: keyof TProps) {
+        check(prop);
+    }
+
+    function check(forceUpdate?: keyof TProps) {
+        const result = iterate(externalProps, deps, state, forceUpdate, refresh);
         checkChange(
             externalProps,
             allPropsFromDeps,
