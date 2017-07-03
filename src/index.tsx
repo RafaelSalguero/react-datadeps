@@ -1,6 +1,6 @@
 import React = require("react");
 import { doTest } from "./test";
-export { PropDependencies } from "./types";
+export { PropDependencies, AsyncPropQuery, SyncPropQuery } from "./types";
 import { PropDependencies } from "./types";
 import { getNextState } from "./nextState";
 //doTest();
