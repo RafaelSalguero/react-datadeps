@@ -1,7 +1,6 @@
 import { getNextStateIteration, getNextStateFromChange, getNextState } from "./logic";
 
 import { PropQuery, PromiseResult, PropDependencies, AsyncPropQuery, QueryParams } from "./types";
-
 function delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -58,7 +57,7 @@ export function doTest() {
     function resolve(props: Props) {
         props = props;
     }
-    const result = getNextState(props, deps,   resolve);
+    const result = getNextState(props, deps, resolve);
 
     //result.dispatchChange({ idCliente: 6});
     setTimeout(() => result({ idCliente: 6 }), 1000);

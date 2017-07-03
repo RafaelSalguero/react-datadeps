@@ -1,5 +1,6 @@
 import React = require("react");
 import { doTest } from "./test";
+export { PropDependencies } from "./types";
 import { PropDependencies } from "./types";
 import { getNextState } from "./logic";
 //doTest();
@@ -11,6 +12,7 @@ export function mapThunksToProps(error: JSX.Element, loading: JSX.Element) {
                 constructor(props: Partial<TProps>) {
                     super(props);
                     this.handleNextProps = getNextState<any>(props, deps, this.handleResolve);
+                    this.state = { props: undefined };
                 }
 
                 private handleNextProps: (props: any) => void;

@@ -30,18 +30,11 @@ function shouldUpdate(nextParams: any[], lastStateParams: any[] | undefined): "u
 }
 
 
-export interface PropUpdate<T> {
-    /**Resultado de la actualización de la propiedad */
-    result: PromiseResult<T>;
-    /**Parametros con los cuáles se actualizó la propiedad */
-    params: any[];
-}
-export type PropUpdates<TProps> = {[K in keyof TProps]?: PropUpdate<TProps[K]> };
 
 interface InitialPropStateResult<TProp> {
     value: PerPropState<TProp>;
     /**Promesa si es que el valor es asíncrono */
-    promise?: PromiseLike<PropUpdate<TProp>>;
+    promise?: PromiseLike<PromiseResult<TProp>>;
 }
 
 /**Obtiene el valor efectivo de una propiedad */
@@ -53,6 +46,11 @@ function getEffectivePropValue<TProps, Key extends keyof TProps>(prop: Key, exte
     }
 }
 
+/**Mezcla las propiedades externas y las del estado actual para obtener los props efectivos que seran pasados al componente hijo.
+ * @param externalProps Propiedades externals
+ * @param allPropsFromDeps Nombre de las propiedades que participan en la declaración de las dependencias de información
+ * @param state Estado actual
+ */
 function getEffectiveProps<TProps>(externalProps: Partial<TProps>, allPropsFromDeps: (keyof TProps)[], state: PropsState<TProps>): Partial<TProps> {
     const stateProps = toMap(allPropsFromDeps
         .map(x => ({ key: x, value: state[x] }))
@@ -75,9 +73,8 @@ function getInitialStateSingleProp<TProps, TProp>(params: QueryParams<TProps>, d
         const depParams = dep.params || [];
         const nextParams = depParams.map(key => params.props[key]);
 
-        const promiseResult: PromiseLike<PropUpdate<TProp>> = promise
-            .then(success => ({ status: "done", value: success }), error => ({ status: "error", error: error } as PromiseResult<TProp>))
-            .then(x => ({ result: x, params: nextParams } as PropUpdate<TProp>))
+        const promiseResult: PromiseLike<PromiseResult<TProp>> = promise
+            .then(success => ({ status: "done", value: success }), error => ({ status: "error", error: error } as PromiseResult<TProp>));
 
         return {
             value: {
@@ -98,14 +95,7 @@ function getInitialStateSingleProp<TProps, TProp>(params: QueryParams<TProps>, d
     }
 }
 
-export interface InitialStateResult<TProps> {
-    /**El nuevo state */
-    state: State<TProps>;
-    /**Una promesa que se debe de atender cuando se resuelva para obtener un siguiente state o null en caso de que el estado no necesite de promesas para ser resuelto */
-    promise: PromiseLike<PropUpdates<TProps>> | null;
-    /**True si el estado fue actualizado de manera sincrona, lo que indica que inmediatamente se debe de intentar actualizar de nuevo*/
-    hadSyncUpdates: boolean;
-}
+
 
 function promiseResultToState<T>(result: PromiseResult<T>, lastParams: any[]): PerPropState<T> {
     switch (result.status) {
@@ -124,12 +114,45 @@ function promiseResultToState<T>(result: PromiseResult<T>, lastParams: any[]): P
     }
 }
 
-export function getNextStateFromChange<TProps>(lastState: PropsState<TProps>, change: PropUpdates<TProps>): PropsState<TProps> {
-    const updates = Object.keys(change).map(key => ({ key: key, value: change[key]!, state: lastState[key] }));
-    const states = updates.map(x => ({ ...x, value: promiseResultToState(x.value.result, (x.state && x.state.lastParams || [])) }))
-    const stateMap = toMap(states, x => x.key, x => x.value);
-    const result = Object.assign({}, lastState, stateMap);
-    return result;
+export function getNextStateFromChangeSingleProp<TProps, TProp>(lastState: PerPropState<TProp> | undefined, change: PromiseResult<TProp>) {
+    const lastParams = lastState && lastState.lastParams || [];
+    const nextState = promiseResultToState(change, lastParams);
+    return nextState;
+}
+
+/**Obtiene el siguiente state dado un cambio de propiedad */
+export function getNextStateFromChange<TProps>(lastStateFull: PropsState<TProps>, prop: keyof TProps, change: PromiseResult<TProps[keyof TProps]>): PropsState<TProps> {
+    const nextStateSingleProp = getNextStateFromChangeSingleProp(lastStateFull[prop], change);
+    const nextState = Object.assign({}, lastStateFull, { [prop]: nextStateSingleProp });
+    return nextState;
+}
+
+/**Extrae los valores de las dependencias de información de una propiedad */
+export function extractParamValues<TProps>(effectiveProps: Partial<TProps>, params: (keyof TProps)[] | undefined): any[] {
+    return (params || []).map(key => effectiveProps[key]);
+}
+
+/**Una promesa creada debido al cambio de una propiedad asíncrona. Almacena tanto la promesa como los parametros originales,
+ * esto para verificar que los parametros originales sean los mismos al final de la resolución de la promesa
+ */
+export interface ChangePromise<TProps> {
+    /**Valores de los parametros originales que se utilizaron para la ejecución del query */
+    params: any[];
+    /**Nombre de la propiedad */
+    prop: keyof TProps;
+    /**Promesa con la resolución del valor de la propiedad */
+    promise: PromiseLike<PromiseResult<TProps[keyof TProps]>>
+}
+
+export interface InitialStateResult<TProps> {
+    /**El nuevo state */
+    state: State<TProps>;
+
+    /**Todas las promesas generadas que se deben de atender para obtener el siguiente state */
+    promises: ChangePromise<TProps>[];
+
+    /**True si el estado fue actualizado de manera sincrona, lo que indica que inmediatamente se debe de intentar actualizar de nuevo*/
+    hadSyncUpdates: boolean;
 }
 
 /**Obtiene el estado inicial de todas las propiedades. Devuelve una promisa que se resuelve cuando todas las propiedades asíncronas han sido resueltas, y que
@@ -144,15 +167,14 @@ export function getNextStateIteration<TProps>(externalProps: Partial<TProps>, de
     const perProp: PerPropResult = {};
 
     //Formamos el objeto que contiene todas las propiedades por promesa:
-    const promises: PromiseLike<{ result: PropUpdate<TProps[keyof TProps]>, prop: keyof TProps }>[] = [];
+    const promises: ChangePromise<TProps>[] = [];
     const resultValue: State<TProps> = { lastProps: params.props, propsState: {} };
 
     let hadSyncUpdates: boolean = false;
     for (const prop of allPropsFromDeps) {
         const dep = deps[prop];
         if (dep) {
-            const depParams = dep.params || [];
-            const nextParams = depParams.map(key => params.props[key]);
+            const nextParams = extractParamValues(params.props, dep.params);
             const lastStateProp = lastState[prop];
             const lastParams = lastStateProp && lastStateProp.lastParams;
             const update = shouldUpdate(nextParams, lastParams);
@@ -168,17 +190,20 @@ export function getNextStateIteration<TProps>(externalProps: Partial<TProps>, de
             perProp[prop] = result;
             resultValue.propsState[prop] = result.value;
             if (result.promise) {
-                const prom = result.promise.then(x => ({ result: x, prop: prop, value: result.value }));
-                promises.push(prom);
+                const prom = result.promise;
+                const item: ChangePromise<TProps> = {
+                    params: extractParamValues(params.props, dep.params),
+                    prop: prop,
+                    promise: prom
+                };
+
+                promises.push(item);
             }
         }
     }
 
-    const allProm = promises.length > 0 ? Promise.all(promises).then(results =>
-        toMap(results, x => x.prop, x => x.result) as any as {[K in keyof TProps]?: PropUpdate<TProps[K]>}) : null;
-
     const result: InitialStateResult<TProps> = {
-        promise: allProm,
+        promises: promises,
         state: resultValue,
         hadSyncUpdates: hadSyncUpdates
     };
@@ -189,7 +214,7 @@ export function getNextStateIteration<TProps>(externalProps: Partial<TProps>, de
 
 interface IterateResult<TProps> {
     state: State<TProps>;
-    promises: PromiseLike<PropUpdates<TProps>>[];
+    promises: ChangePromise<TProps>[];
 }
 
 /**Itera obteniendo el siguiente state con getNextStateIteration hasta que ya no hay actualizaciones síncronas, y devuelve un arreglo con las promesas
@@ -197,13 +222,12 @@ interface IterateResult<TProps> {
  */
 function iterate<TProps>(externalProps: Partial<TProps>, deps: PropDependencies<TProps>, lastState: State<TProps>): IterateResult<TProps> {
     let state = lastState;
-    let promises: PromiseLike<PropUpdates<TProps>>[] = [];
+    let promises: ChangePromise<TProps>[] = [];
     while (true) {
         const result = getNextStateIteration(externalProps, deps, state.propsState);
         state = result.state;
+        promises.push(...result.promises)
 
-        if (result.promise)
-            promises.push(result.promise)
         //Si ya no hubo cambios se termina el ciclo de iteraciones
         if (!result.hadSyncUpdates) {
             break;
@@ -227,17 +251,26 @@ function propsStateAllDone<TProps>(state: PropsState<TProps>) {
 export function getNextState<TProps>(initialProps: Partial<TProps>, deps: PropDependencies<TProps>, resolve: (props: TProps) => void): (nextProps: Partial<TProps>) => void {
     const allPropsFromDeps = Object.keys(deps) as (keyof TProps)[];
 
-    let promises: PromiseLike<PropUpdates<TProps>>[] = [];
+    let promises: ChangePromise<TProps>[] = [];
     let state: State<TProps> = { lastProps: undefined, propsState: {} };
     let externalProps = initialProps;
 
-    function dispatchPromise(change: PropUpdates<TProps>, original: PromiseLike<PropUpdates<TProps>>) {
+    function dispatchPromise(change: PromiseResult<TProps[keyof TProps]>, original: ChangePromise<TProps>) {
         //Eliminamos esta promesa de las promesas pendientes:
         promises = promises.filter(x => x != original);
-        //Actualizamos el state con la información de la promesa, y realizamos de nuevo el chequeo:
-        state = { ...state, propsState: getNextStateFromChange(state.propsState, change) };
-        //Iniciamos el ciclo de chequeo otra vez, esto se seguira repitiendo hasta que ya no existan mas promesas pendientes
-        check();
+
+        const dep = deps[original.prop] as AsyncPropQuery<TProps, TProps[keyof TProps]>;
+        const actualProps = getEffectiveProps(externalProps, allPropsFromDeps, state.propsState);
+        const actualParams = extractParamValues(actualProps, dep.params);
+        const originalParams = original.params;
+
+        //Actualizamos el state con la información de la promesa, y realizamos de nuevo el chequeo, siempre y cuando los parametros originales y los 
+        //actuales sean consistenates
+        if (sequenceEquals(actualParams, originalParams)) {
+            state = { ...state, propsState: getNextStateFromChange(state.propsState, original.prop, change) };
+            //Iniciamos el ciclo de chequeo otra vez, esto se seguira repitiendo hasta que ya no existan mas promesas pendientes
+            check();
+        }
     }
 
     function dispatchChange(nextProps: TProps) {
@@ -250,7 +283,7 @@ export function getNextState<TProps>(initialProps: Partial<TProps>, deps: PropDe
         state = result.state;
         promises = [...promises, ...result.promises];
         for (const prom of result.promises) {
-            prom.then(promResult => dispatchPromise(promResult, prom));
+            prom.promise.then(promResult => dispatchPromise(promResult, prom));
         }
 
         if (propsStateAllDone(result.state.propsState)) {
