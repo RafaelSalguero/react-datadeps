@@ -1,4 +1,5 @@
-import { getNextStateIteration, getNextStateFromChange, getNextState } from "./logic";
+import { getNextStateIteration, getNextStateFromChange } from "./logic";
+import { getNextState } from "./nextState";
 
 import { PropQuery, PromiseResult, PropDependencies, AsyncPropQuery, QueryParams } from "./types";
 function delay(ms: number) {

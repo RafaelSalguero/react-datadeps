@@ -2,7 +2,7 @@ import React = require("react");
 import { doTest } from "./test";
 export { PropDependencies } from "./types";
 import { PropDependencies } from "./types";
-import { getNextState } from "./logic";
+import { getNextState } from "./nextState";
 //doTest();
 
 export function mapThunksToProps(error: JSX.Element, loading: JSX.Element) {

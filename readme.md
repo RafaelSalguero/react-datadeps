@@ -22,8 +22,22 @@ class MyComponent extends React.Component<Props, {}> {
 
 ### 2.- `mapPropsToThunks`
 ```ts
-import { mapPropsToThunks } from "react-datadeps";
+import { mapPropsToThunks, PropDependencies } from "react-datadeps";
 import { myService, otherService } from "./myService";
+
+const deps: PropDependencies<Props> = {
+    myData: {
+        query: async (props) => await myService(props.id), //query can be an async function
+        async: true, //true to await the query result
+        params: ["id"] //when props.id changes, refresh this query
+    },
+    moreData: {
+        query: async (props) => await otherService(props.myData), //neasted data dependency
+        async: true,
+        params: ["myData"]
+    },
+    my
+};
 
 const MyComponent2 = mapPropsToThunks()((props, refresh) => ({
     //Declarative data dependencies:
