@@ -22,7 +22,7 @@ export interface QueryParams<TProps> {
     /**Current props */
     props: Partial<TProps>;
     /**Refresh the given prop query. The refresh happens only if all prop dependencies are fully solved */
-    refresh: (prop: keyof TProps) => void;
+    refresh: (prop: keyof TProps) => PromiseLike<void>;
 }
 //**********************************
 //syntax test:

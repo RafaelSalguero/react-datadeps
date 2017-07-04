@@ -164,7 +164,7 @@ export function getNextStateIteration<TProps>(
     deps: PropDependencies<TProps>, 
     lastState: PropsState<TProps>, 
     forceUpdate: (keyof TProps) | undefined,
-    refresh: (prop: keyof TProps) => void
+    refresh: (prop: keyof TProps) => PromiseLike<void>
     ): InitialStateResult<TProps> {
 
     const allPropsFromDeps = Object.keys(deps) as (keyof TProps)[];
@@ -235,7 +235,7 @@ export function iterate<TProps>(
     deps: PropDependencies<TProps>, 
     lastState: State<TProps>, 
     forceUpdate: (keyof TProps) | undefined, 
-    refresh: (prop: keyof TProps) => void): IterateResult<TProps> {
+    refresh: (prop: keyof TProps) => PromiseLike<void>): IterateResult<TProps> {
 
     let state = lastState;
     let promises: ChangePromise<TProps>[] = [];

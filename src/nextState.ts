@@ -89,10 +89,11 @@ export function getNextState<TProps>(initialProps: Partial<TProps>, deps: PropDe
 
     /**Forza el refrescado de una propiedad */
     function refresh(prop: keyof TProps) {
-        check(prop);
+        return check(prop);
     }
 
-    function check(forceUpdate?: keyof TProps) {
+    /**Revisa si hay cambios pendientes. Devuelve una promesa que se termina cuando todas las promesas pendientes terminan */
+    function check(forceUpdate?: keyof TProps): PromiseLike<void> {
         const result = iterate(externalProps, deps, state, forceUpdate, refresh);
         checkChange(
             externalProps,
@@ -104,6 +105,8 @@ export function getNextState<TProps>(initialProps: Partial<TProps>, deps: PropDe
 
         state = result.state;
         promises = [...promises, ...result.promises];
+
+        return Promise.all(promises.map(x => x.promise)).then(() => { });
     }
 
     //Iniciamos el ciclo:
