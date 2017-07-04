@@ -253,9 +253,15 @@ export function iterate<TProps>(
     return { state, promises };
 }
 
-/**True si todas las propiedades de un state estan en status "done" */
-export function propsStateAllDone<TProps>(state: PropsState<TProps>) {
-    const keys = Object.keys(state).map(key => state[key]);
-    const done = all(keys, x => x && x.status == "done" || false);
-    return done;
+
+/**Devuelve el status reducido de todos los props. Devuelve error si por lo menos una es error, si no, pending si por lo menos una es pending, si no, devuelve done */
+export function propsState<TProps>(state: PropsState<TProps>) : "done" | "pending" | "error" {
+    const status = Object.keys(state).map(key => state[key]).filter(x=> x).map(x=> x!.status);
+    const result = status.reduce((prev, curr) => {
+        if(prev == "error" || curr == "error") return "error";
+        if(prev == "pending" || curr == "pending") return "pending";
+        return "done";
+    } , "done");
+
+    return result;
 }

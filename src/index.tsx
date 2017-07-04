@@ -1,5 +1,4 @@
 import React = require("react");
-import { doTest } from "./test";
 export { PropDependencies, AsyncPropQuery, SyncPropQuery } from "./types";
 import { PropDependencies } from "./types";
 import { getNextState } from "./nextState";
@@ -8,17 +7,20 @@ import { getNextState } from "./nextState";
 export function mapThunksToProps(loading: JSX.Element, error: JSX.Element) {
     return function <TProps>(deps: PropDependencies<TProps>) {
         return function (Component: React.ComponentClass<TProps>): React.ComponentClass<Partial<TProps>> {
-             const r = class MapThunksComponent extends React.PureComponent<Partial<TProps>, { props: any }> {
+            const r = class MapThunksComponent extends React.PureComponent<Partial<TProps>, { props: any, status: "done" | "pending" | "error" }> {
                 constructor(props: Partial<TProps>) {
                     super(props);
-                    this.handleNextProps = getNextState<any>(props, deps, this.handleResolve);
-                    this.state = { props: undefined };
+                    this.state = { props: undefined, status: "pending" };
+                }
+
+                componentWillMount() {
+                    this.handleNextProps = getNextState<any>(this.props, deps, this.handleResolve);
                 }
 
                 private handleNextProps: (props: any) => void;
 
-                private handleResolve = (props: any) => {
-                    this.setState({ props: props });
+                private handleResolve = (props: any, status: "done" | "pending" | "error") => {
+                    this.setState(prev => ({ props: props || prev.props, status }));
                 };
 
                 componentWillReceiveProps(nextProps: Partial<TProps>) {
@@ -26,11 +28,12 @@ export function mapThunksToProps(loading: JSX.Element, error: JSX.Element) {
                 }
 
                 render() {
-                    if (this.state.props) {
+                    if (this.state.status == "done" || (this.state.props && this.state.status == "pending")) {
                         return <Component {... this.state.props} />;
-                    } else {
+                    } else if (this.state.status == "pending")
                         return loading;
-                    }
+                    else
+                        return error;
                 }
             };
 

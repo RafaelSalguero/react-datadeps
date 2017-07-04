@@ -1,5 +1,5 @@
 import { PropDependencies, PromiseResult, AsyncPropQuery } from "./types"
-import { ChangePromise, extractParamValues, getEffectiveProps, getNextStateFromChange, iterate, propsStateAllDone, IterateResult } from "./logic";
+import { ChangePromise, extractParamValues, getEffectiveProps, getNextStateFromChange, iterate, propsState, IterateResult } from "./logic";
 import { State } from "./state";
 import { sequenceEquals } from "keautils";
 
@@ -34,7 +34,7 @@ function checkChange<TProps>(
     allPropsFromDeps: (keyof TProps)[],
     iterateResult: IterateResult<TProps>,
     dispatchPromise: (promResult: PromiseResult<TProps[keyof TProps]>, original: ChangePromise<TProps>) => void,
-    resolve: (props: TProps) => void) {
+    resolve: (props: TProps | undefined, status: "done" | "error" | "pending") => void) {
 
     //Despachamos todas las promesas:
     for (const prom of iterateResult.promises) {
@@ -42,17 +42,20 @@ function checkChange<TProps>(
     }
 
     //Publicamos los nuevos props:
-    if (propsStateAllDone(iterateResult.state.propsState)) {
+    const currentStatus = propsState(iterateResult.state.propsState);
+    if (currentStatus == "done") {
         //Extraemos las propiedades: 
         const effectiveProps = getEffectiveProps(externalProps, allPropsFromDeps, iterateResult.state.propsState);
-        resolve(effectiveProps as TProps);
+        resolve(effectiveProps as TProps, "done");
+    } else {
+        resolve(undefined, currentStatus);
     }
 }
 
 /**Dadas las propiedades iniciales, resuelve las dependencias de información dadas por deps y devuelve los props resueltos en la función resolve.
  * Devuelve una función que notifica de un cambio de las propiedades externas.
  */
-export function getNextState<TProps>(initialProps: Partial<TProps>, deps: PropDependencies<TProps>, resolve: (props: TProps) => void): (nextProps: Partial<TProps>) => void {
+export function getNextState<TProps>(initialProps: Partial<TProps>, deps: PropDependencies<TProps>, resolve: (props: TProps | undefined, status: "done" | "error" | "pending") => void): (nextProps: Partial<TProps>) => void {
     const allPropsFromDeps = Object.keys(deps) as (keyof TProps)[];
 
     let promises: ChangePromise<TProps>[] = [];
