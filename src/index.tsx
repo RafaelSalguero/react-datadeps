@@ -7,7 +7,7 @@ import { getNextState } from "./nextState";
 export function mapThunksToProps(loading: JSX.Element, error: JSX.Element) {
     return function <TProps>(deps: PropDependencies<TProps>) {
         return function (Component: React.ComponentClass<TProps>): React.ComponentClass<Partial<TProps>> {
-            const r = class MapThunksComponent extends React.PureComponent<Partial<TProps>, { props: any, status: "done" | "pending" | "error" }> {
+            const ret: React.ComponentClass<Partial<TProps>> = class MapThunksComponent extends React.PureComponent<Partial<TProps>, { props: any, status: "done" | "pending" | "error" }> {
                 constructor(props: Partial<TProps>) {
                     super(props);
                     this.state = { props: undefined, status: "pending" };
@@ -37,7 +37,9 @@ export function mapThunksToProps(loading: JSX.Element, error: JSX.Element) {
                 }
             };
 
-            return r;
+            const innerName = Component.displayName || Component.name || "Component";
+            ret.displayName = `MapThunksToProps(${innerName})`;
+            return ret;
         }
     }
 }
