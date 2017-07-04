@@ -1,6 +1,6 @@
 {
   "name": "react-datadeps",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "description": "Declarative data dependencies for react components",
   "main": "dist/index.js",
   "typescript": {
