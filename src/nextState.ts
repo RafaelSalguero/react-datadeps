@@ -1,5 +1,5 @@
 import { PropDependencies, PromiseResult, AsyncPropQuery } from "./types"
-import { ChangePromise, extractParamValues, getEffectiveProps, getNextStateFromChange, iterate, propsState, IterateResult } from "./logic";
+import { ChangePromise, extractParamValues, getEffectiveProps, getNextStateFromChange, iterate, propsState, IterateResult, Mixer } from "./logic";
 import { State } from "./state";
 import { sequenceEquals } from "keautils";
 
@@ -12,10 +12,12 @@ function getNextStateFromPromise<TProps>(
     state: State<TProps>,
     deps: PropDependencies<TProps>,
     change: PromiseResult<TProps[keyof TProps]>,
-    original: ChangePromise<TProps>): State<TProps> | null {
+    original: ChangePromise<TProps>,
+    mixer: Mixer<TProps>
+): State<TProps> | null {
 
     const dep = deps[original.prop] as AsyncPropQuery<TProps, TProps[keyof TProps]>;
-    const actualProps = getEffectiveProps(externalProps, allPropsFromDeps, state.propsState);
+    const actualProps = getEffectiveProps(externalProps, allPropsFromDeps, state.propsState, mixer);
     const actualParams = extractParamValues(actualProps, dep.params);
     const originalParams = original.params;
 
@@ -34,7 +36,9 @@ function checkChange<TProps>(
     allPropsFromDeps: (keyof TProps)[],
     iterateResult: IterateResult<TProps>,
     dispatchPromise: (promResult: PromiseResult<TProps[keyof TProps]>, original: ChangePromise<TProps>) => void,
-    resolve: (props: TProps | undefined, status: "done" | "error" | "pending") => void) {
+    resolve: (props: TProps | undefined, status: "done" | "error" | "pending") => void,
+    mixer: Mixer<TProps>
+) {
 
     //Despachamos todas las promesas:
     for (const prom of iterateResult.promises) {
@@ -45,7 +49,7 @@ function checkChange<TProps>(
     const currentStatus = propsState(iterateResult.state.propsState);
     if (currentStatus == "done") {
         //Extraemos las propiedades: 
-        const effectiveProps = getEffectiveProps(externalProps, allPropsFromDeps, iterateResult.state.propsState);
+        const effectiveProps = getEffectiveProps(externalProps, allPropsFromDeps, iterateResult.state.propsState, mixer);
         resolve(effectiveProps as TProps, "done");
     } else {
         resolve(undefined, currentStatus);
@@ -55,7 +59,12 @@ function checkChange<TProps>(
 /**Dadas las propiedades iniciales, resuelve las dependencias de información dadas por deps y devuelve los props resueltos en la función resolve.
  * Devuelve una función que notifica de un cambio de las propiedades externas.
  */
-export function getNextState<TProps>(initialProps: Partial<TProps>, deps: PropDependencies<TProps>, resolve: (props: TProps | undefined, status: "done" | "error" | "pending") => void): (nextProps: Partial<TProps>) => void {
+export function getNextState<TProps>(
+    initialProps: Partial<TProps>,
+    deps: PropDependencies<TProps>,
+    resolve: (props: TProps | undefined, status: "done" | "error" | "pending") => void,
+    mixer: Mixer<TProps>
+): (nextProps: Partial<TProps>) => void {
     const allPropsFromDeps = Object.keys(deps) as (keyof TProps)[];
 
     let promises: ChangePromise<TProps>[] = [];
@@ -69,7 +78,8 @@ export function getNextState<TProps>(initialProps: Partial<TProps>, deps: PropDe
             state,
             deps,
             change,
-            original
+            original,
+            mixer
         );
 
         //Eliminamos esta promesa de las promesas pendientes:
@@ -100,7 +110,8 @@ export function getNextState<TProps>(initialProps: Partial<TProps>, deps: PropDe
             allPropsFromDeps,
             result,
             dispatchPromise,
-            resolve
+            resolve,
+            mixer
         );
 
         state = result.state;

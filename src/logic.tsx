@@ -46,22 +46,31 @@ export function getEffectivePropValue<TProps, Key extends keyof TProps>(prop: Ke
     }
 }
 
+/**Tipo de la función que se encarga de mezclar los props internos y los externos */
+export type Mixer<TProps> = (stateProps: Partial<TProps>, externalProps: Partial<TProps>) => Partial<TProps>;
+
 /**Mezcla las propiedades externas y las del estado actual para obtener los props efectivos que seran pasados al componente hijo.
  * @param externalProps Propiedades externals
  * @param allPropsFromDeps Nombre de las propiedades que participan en la declaración de las dependencias de información
  * @param state Estado actual
  */
-export function getEffectiveProps<TProps>(externalProps: Partial<TProps>, allPropsFromDeps: (keyof TProps)[], state: PropsState<TProps>): Partial<TProps> {
+export function getEffectiveProps<TProps>(externalProps: Partial<TProps>, allPropsFromDeps: (keyof TProps)[], state: PropsState<TProps>, mixer: Mixer<TProps>): Partial<TProps> {
     const stateProps = toMap(allPropsFromDeps
         .map(x => ({ key: x, value: state[x] }))
         .map(x => ({ ...x, value: x.value && x.value.status == "done" ? x.value.lastQueryResult : propPendingValue })),
         x => x.key,
         x => x.value);
 
-    const result = { ...stateProps, ... (externalProps as any) };
-
+    const result = mixer(stateProps as any, externalProps);
     return result;
 }
+
+/**Funcion por default que se encarga de mezclar los props internos del state provenientes de la resolución de dependencias y los props externos.
+ * Este mixer mezcla todas las propiedades del state, seguidas de las externas, dandole prioridad a las externas */
+export function defaultMix<TProps>(stateProps: Partial<TProps>, externalProps: Partial<TProps>): Partial<TProps> {
+    return { ... (stateProps as any), ... (externalProps as any) };
+}
+
 
 /**Obtiene el estado inicial para una de las propiedades. Devuelve una promesa como parte del resultado en caso de que la propiedad sea
  * asíncrona */
@@ -74,7 +83,7 @@ function getInitialStateSingleProp<TProps, TProp>(params: QueryParams<TProps>, d
         const nextParams = depParams.map(key => params.props[key]);
 
         const promiseResult: PromiseLike<PromiseResult<TProp>> = promise
-            .then(success => ({ status: "done", value: success }), error => ({ status: "error", error: error } as PromiseResult<TProp>));
+            .then(success => ({ status: "done", value: success } as PromiseResult<TProp>), error => ({ status: "error", error: error } as PromiseResult<TProp>));
 
         return {
             value: {
@@ -160,16 +169,17 @@ export interface InitialStateResult<TProps> {
  * @param forceUpdate Propiedad que queremos actualizar incluso si ninguna de sus dependencias ha cambiado
  */
 export function getNextStateIteration<TProps>(
-    externalProps: Partial<TProps>, 
-    deps: PropDependencies<TProps>, 
-    lastState: PropsState<TProps>, 
+    externalProps: Partial<TProps>,
+    deps: PropDependencies<TProps>,
+    lastState: PropsState<TProps>,
     forceUpdate: (keyof TProps) | undefined,
-    refresh: (prop: keyof TProps) => PromiseLike<void>
-    ): InitialStateResult<TProps> {
+    refresh: (prop: keyof TProps) => PromiseLike<void>,
+    mixer: Mixer<TProps>
+): InitialStateResult<TProps> {
 
     const allPropsFromDeps = Object.keys(deps) as (keyof TProps)[];
     const params: QueryParams<TProps> = {
-        props: getEffectiveProps(externalProps, allPropsFromDeps, lastState),
+        props: getEffectiveProps(externalProps, allPropsFromDeps, lastState, mixer),
         refresh: refresh
     };
     type PerPropResult = {[K in keyof TProps]?: InitialPropStateResult<TProps[K]> };
@@ -231,10 +241,10 @@ export interface IterateResult<TProps> {
  * @param forceUpdate Propiedad que queremos actualizar inclusi si ninguna de sus dependencias ha cambiado
  */
 export function iterate<TProps>(
-    externalProps: Partial<TProps>, 
-    deps: PropDependencies<TProps>, 
-    lastState: State<TProps>, 
-    forceUpdate: (keyof TProps) | undefined, 
+    externalProps: Partial<TProps>,
+    deps: PropDependencies<TProps>,
+    lastState: State<TProps>,
+    forceUpdate: (keyof TProps) | undefined,
     refresh: (prop: keyof TProps) => PromiseLike<void>): IterateResult<TProps> {
 
     let state = lastState;
@@ -255,13 +265,13 @@ export function iterate<TProps>(
 
 
 /**Devuelve el status reducido de todos los props. Devuelve error si por lo menos una es error, si no, pending si por lo menos una es pending, si no, devuelve done */
-export function propsState<TProps>(state: PropsState<TProps>) : "done" | "pending" | "error" {
-    const status = Object.keys(state).map(key => state[key]).filter(x=> x).map(x=> x!.status);
+export function propsState<TProps>(state: PropsState<TProps>): "done" | "pending" | "error" {
+    const status = Object.keys(state).map(key => state[key]).filter(x => x).map(x => x!.status);
     const result = status.reduce((prev, curr) => {
-        if(prev == "error" || curr == "error") return "error";
-        if(prev == "pending" || curr == "pending") return "pending";
+        if (prev == "error" || curr == "error") return "error";
+        if (prev == "pending" || curr == "pending") return "pending";
         return "done";
-    } , "done");
+    }, "done");
 
     return result;
 }

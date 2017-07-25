@@ -2,10 +2,11 @@ import React = require("react");
 export { PropDependencies, AsyncPropQuery, SyncPropQuery } from "./types";
 import { PropDependencies } from "./types";
 import { getNextState } from "./nextState";
+import { Mixer, defaultMix } from "./logic";
 //doTest();
 
 export function mapThunksToProps(loading: JSX.Element, error: JSX.Element) {
-    return function <TProps>(deps: PropDependencies<TProps>) {
+    return function <TProps>(deps: PropDependencies<TProps>, mixer?: Mixer<TProps>) {
         return function (Component: React.ComponentClass<TProps>): React.ComponentClass<Partial<TProps>> {
             const ret: React.ComponentClass<Partial<TProps>> = class MapThunksComponent extends React.PureComponent<Partial<TProps>, { props: any, status: "done" | "pending" | "error" }> {
                 constructor(props: Partial<TProps>) {
@@ -14,7 +15,7 @@ export function mapThunksToProps(loading: JSX.Element, error: JSX.Element) {
                 }
 
                 componentWillMount() {
-                    this.handleNextProps = getNextState<any>(this.props, deps, this.handleResolve);
+                    this.handleNextProps = getNextState<any>(this.props, deps, this.handleResolve, mixer || defaultMix);
                 }
 
                 private handleNextProps: (props: any) => void;
