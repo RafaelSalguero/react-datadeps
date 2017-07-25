@@ -65,10 +65,21 @@ export function getEffectiveProps<TProps>(externalProps: Partial<TProps>, allPro
     return result;
 }
 
+function removeUndefinedProperties(a: any): any {
+    const ret = { ...a };
+    for (const prop in ret) {
+        if (ret[prop] === undefined) {
+            delete ret[prop];
+        }
+    }
+
+    return ret;
+}
+
 /**Funcion por default que se encarga de mezclar los props internos del state provenientes de la resolución de dependencias y los props externos.
  * Este mixer mezcla todas las propiedades del state, seguidas de las externas, dandole prioridad a las externas */
 export function defaultMix<TProps>(stateProps: Partial<TProps>, externalProps: Partial<TProps>): Partial<TProps> {
-    return { ... (stateProps as any), ... (externalProps as any) };
+    return { ... (stateProps as any), ...removeUndefinedProperties(externalProps) };
 }
 
 
