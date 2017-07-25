@@ -3,6 +3,7 @@ export { PropDependencies, AsyncPropQuery, SyncPropQuery } from "./types";
 import { PropDependencies } from "./types";
 import { getNextState } from "./nextState";
 import { Mixer, defaultMix } from "./logic";
+export { Mixer } from "./logic";
 //doTest();
 
 export function mapThunksToProps(loading: JSX.Element, error: JSX.Element) {
