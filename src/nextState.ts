@@ -104,7 +104,7 @@ export function getNextState<TProps>(
 
     /**Revisa si hay cambios pendientes. Devuelve una promesa que se termina cuando todas las promesas pendientes terminan */
     function check(forceUpdate?: keyof TProps): PromiseLike<void> {
-        const result = iterate(externalProps, deps, state, forceUpdate, refresh);
+        const result = iterate(externalProps, deps, state, forceUpdate, refresh, mixer);
         checkChange(
             externalProps,
             allPropsFromDeps,

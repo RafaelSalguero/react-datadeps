@@ -245,12 +245,14 @@ export function iterate<TProps>(
     deps: PropDependencies<TProps>,
     lastState: State<TProps>,
     forceUpdate: (keyof TProps) | undefined,
-    refresh: (prop: keyof TProps) => PromiseLike<void>): IterateResult<TProps> {
+    refresh: (prop: keyof TProps) => PromiseLike<void>,
+    mixer: Mixer<TProps>
+): IterateResult<TProps> {
 
     let state = lastState;
     let promises: ChangePromise<TProps>[] = [];
     while (true) {
-        const result = getNextStateIteration(externalProps, deps, state.propsState, forceUpdate, refresh);
+        const result = getNextStateIteration(externalProps, deps, state.propsState, forceUpdate, refresh, mixer);
         state = result.state;
         promises.push(...result.promises)
 
