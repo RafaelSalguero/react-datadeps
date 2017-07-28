@@ -95,7 +95,7 @@ function getInitialStateSingleProp<TProps, TProp>(params: QueryParams<TProps>, d
 
         const promiseResult: PromiseLike<PromiseResult<TProp>> = promise
             .then(success => ({ status: "done", value: success } as PromiseResult<TProp>), error => {
-                console.warn("Resolver la promesa de la propiedad " + propName + " ha resultado en el siguiente error: " + error)
+                console.warn("Solving the promise for the prop" + propName + " resulted on error: " + error)
                 return ({ status: "error", error: error } as PromiseResult<TProp>);
             }
             );
@@ -214,7 +214,7 @@ export function getNextStateIteration<TProps>(
             const update = shouldUpdate(nextParams, lastParams, prop == forceUpdate);
 
             const result: InitialPropStateResult<TProps[keyof TProps]> =
-                update == "update" ? getInitialStateSingleProp<TProps, TProps[keyof TProps]>(params, dep) :
+                update == "update" ? getInitialStateSingleProp<TProps, TProps[keyof TProps]>(params, dep, prop) :
                     (update == "nothingChanged" && lastStateProp) ? { value: lastStateProp } :
                         (update == "pendingDeps") ? { value: { status: "pending", lastParams: (lastStateProp && lastStateProp.lastParams) } } : null as never;
 
