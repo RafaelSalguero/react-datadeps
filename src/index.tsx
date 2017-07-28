@@ -32,10 +32,12 @@ export function mapThunksToProps(loading: JSX.Element, error: JSX.Element) {
                 render() {
                     if (this.state.status == "done" || (this.state.props && this.state.status == "pending")) {
                         return <Component {... this.state.props} />;
-                    } else if (this.state.status == "pending")
+                    } else if (this.state.status == "pending") {
                         return loading;
-                    else
+                    }
+                    else {
                         return error;
+                    }
                 }
             };
 

@@ -85,7 +85,7 @@ export function defaultMix<TProps>(stateProps: Partial<TProps>, externalProps: P
 
 /**Obtiene el estado inicial para una de las propiedades. Devuelve una promesa como parte del resultado en caso de que la propiedad sea
  * asíncrona */
-function getInitialStateSingleProp<TProps, TProp>(params: QueryParams<TProps>, dep: PropQuery<TProps, TProp>): InitialPropStateResult<TProp> {
+function getInitialStateSingleProp<TProps, TProp>(params: QueryParams<TProps>, dep: PropQuery<TProps, TProp>, propName: keyof TProps): InitialPropStateResult<TProp> {
     const lastParams = (dep.params || []).map(key => params.props[key]);
     if (IsAsyncPropQuery<TProps, TProp>(dep)) {
         const promise = dep.query(params.props as TProps, params.refresh);
@@ -94,7 +94,11 @@ function getInitialStateSingleProp<TProps, TProp>(params: QueryParams<TProps>, d
         const nextParams = depParams.map(key => params.props[key]);
 
         const promiseResult: PromiseLike<PromiseResult<TProp>> = promise
-            .then(success => ({ status: "done", value: success } as PromiseResult<TProp>), error => ({ status: "error", error: error } as PromiseResult<TProp>));
+            .then(success => ({ status: "done", value: success } as PromiseResult<TProp>), error => {
+                console.warn("Resolver la promesa de la propiedad " + propName + " ha resultado en el siguiente error: " + error)
+                return ({ status: "error", error: error } as PromiseResult<TProp>);
+            }
+            );
 
         return {
             value: {
