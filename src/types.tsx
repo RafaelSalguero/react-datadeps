@@ -11,7 +11,7 @@ export interface SyncPropQuery<TProps, TProp> {
     /**Get the names of the props that trigger a refresh on the query*/
     params?: (keyof TProps)[];
     /**A thunk with the value to pass to the prop */
-    query: (props: TProps, refresh: (propName: keyof TProps) => void) => TProp
+    query: (props: TProps, refresh: (propName: keyof TProps) => PromiseLike<void>) => TProp
 };
 
 export type PropQuery<TProps, TProp> = AsyncPropQuery<TProps, TProp> | SyncPropQuery<TProps, TProp>;

@@ -17,16 +17,21 @@ function IsAsyncPropQuery<TProps, TProp>(dep: PropQuery<TProps, TProp> | undefin
 }
 
 /**Determina si se debe de actualizar el valor de una propiedad dados los parametros siguientes y 
- * los anteriores, se considera como valor especial al propPendingValue. Si la propiedad se debe de actualizar devuelve "update", si no,
+ * los anteriores, se considera como valor especial al propPendingValue. Si la propiedad se debe de actualizar devuelve "update" or "forcedUpdate" si es que force == true, si no,
  * devuelve "nothingChanged" si ninguna de sus dependencias cambio así que no se debe de actualizar, o "pendingDeps" si alguna de sus dependencias
- * aún esta pendiente de actualizar y por eso no se debe de actualizar
+ * aún esta pendiente de actualizar y por eso no se debe de actualizar.
+ * 
+ * Si la condición de "update" se cumple junto con la de "forcedUpdate", se devuelve "update"
  */
-function shouldUpdate(nextParams: any[], lastStateParams: any[] | undefined, force: boolean): "update" | "nothingChanged" | "pendingDeps" {
+function shouldUpdate(nextParams: any[], lastStateParams: any[] | undefined, force: boolean): "update" | "nothingChanged" | "pendingDeps" | "forcedUpdate" {
     const anyPending = any(nextParams, x => x == propPendingValue);
     if (anyPending) return "pendingDeps";
 
     const change = lastStateParams == undefined || !sequenceEquals(lastStateParams, nextParams);
-    return (change || force) ? "update" : "nothingChanged";
+    return (
+        change ? "update" :
+            force ? "forcedUpdate" :
+                "nothingChanged");
 }
 
 
@@ -214,9 +219,9 @@ export function getNextStateIteration<TProps>(
             const update = shouldUpdate(nextParams, lastParams, prop == forceUpdate);
 
             const result: InitialPropStateResult<TProps[keyof TProps]> =
-                update == "update" ? getInitialStateSingleProp<TProps, TProps[keyof TProps]>(params, dep, prop) :
-                    (update == "nothingChanged" && lastStateProp) ? { value: lastStateProp } :
-                        (update == "pendingDeps") ? { value: { status: "pending", lastParams: (lastStateProp && lastStateProp.lastParams) } } : null as never;
+                (update == "update" || update =="forcedUpdate" ) ? getInitialStateSingleProp<TProps, TProps[keyof TProps]>(params, dep, prop) :
+                    (update == "nothingChanged" ) ? { value: lastStateProp! } :
+                        (update == "pendingDeps") ? { value: { status: "pending", lastParams: (lastStateProp && lastStateProp.lastParams) } } : update;
 
             if (update == "update" && result.value.status == "done") {
                 hadSyncUpdates = true;
